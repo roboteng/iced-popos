@@ -298,7 +298,7 @@ where
         cursor_position: Point,
     ) -> iced_accessibility::A11yTree {
         use iced_accessibility::{
-            accesskit::{NodeBuilder, NodeId, Rect, Role},
+            accesskit::{Node, NodeId, Rect, Role},
             A11yTree,
         };
 
@@ -316,10 +316,10 @@ where
             (x + width) as f64,
             (y + height) as f64,
         );
-        let mut node = NodeBuilder::new(Role::Slider);
+        let mut node = Node::new(Role::Slider);
         node.set_bounds(bounds);
         if let Some(name) = self.name.as_ref() {
-            node.set_name(name.clone());
+            node.set_label(name.clone());
         }
         match self.description.as_ref() {
             Some(iced_accessibility::Description::Id(id)) => {
@@ -337,7 +337,8 @@ where
         }
 
         if is_hovered {
-            node.set_hovered();
+            // TODO
+            // node.set_hovered();
         }
 
         if let Some(label) = self.label.as_ref() {

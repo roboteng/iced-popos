@@ -43,19 +43,15 @@ pub enum UserEventWrapper<Message> {
     Message(Message),
     #[cfg(feature = "a11y")]
     /// A11y Action Request
-    A11y(iced_accessibility::accesskit_winit::ActionRequestEvent),
+    A11y(iced_accessibility::Event),
     #[cfg(feature = "a11y")]
     /// A11y was enabled
     A11yEnabled,
 }
 
 #[cfg(feature = "a11y")]
-impl<Message> From<iced_accessibility::accesskit_winit::ActionRequestEvent>
-    for UserEventWrapper<Message>
-{
-    fn from(
-        action_request: iced_accessibility::accesskit_winit::ActionRequestEvent,
-    ) -> Self {
+impl<Message> From<iced_accessibility::Event> for UserEventWrapper<Message> {
+    fn from(action_request: iced_accessibility::Event) -> Self {
         UserEventWrapper::A11y(action_request)
     }
 }
@@ -374,29 +370,33 @@ async fn run_instance<A, E, C>(
     let mut commands: Vec<Command<A::Message>> = Vec::new();
 
     #[cfg(feature = "a11y")]
-    let (window_a11y_id, adapter, mut a11y_enabled) = {
+    let (window_a11y_id, mut adapter, mut a11y_enabled) = {
         let node_id = core::id::window_node_id();
 
         use iced_accessibility::accesskit::{
-            NodeBuilder, NodeId, Role, Tree, TreeUpdate,
+            Node, NodeId, Role, Tree, TreeUpdate,
         };
-        use iced_accessibility::accesskit_winit::Adapter;
+        use iced_accessibility::PlatformAdapter;
         let title = state.title().to_string();
         let proxy_clone = proxy.clone();
         (
             node_id,
-            Adapter::new(
+            PlatformAdapter::new(
                 &window,
                 move || {
                     let _ =
                         proxy_clone.send_event(UserEventWrapper::A11yEnabled);
-                    let mut node = NodeBuilder::new(Role::Window);
-                    node.set_name(title.clone());
-                    let node = node.build(&mut iced_accessibility::accesskit::NodeClassSet::lock_global());
+                    let mut node = Node::new(Role::Window);
+                    node.set_label(title.clone());
                     TreeUpdate {
-                        nodes: vec![(NodeId(node_id), node)],
-                        tree: Some(Tree::new(NodeId(node_id))),
-                        focus: None,
+                        nodes: vec![(
+                            NodeId(node_id.get().try_into().unwrap()),
+                            node,
+                        )],
+                        tree: Some(Tree::new(NodeId(
+                            node_id.get().try_into().unwrap(),
+                        ))),
+                        focus: NodeId(node_id.get().try_into().unwrap()),
                     }
                 },
                 proxy.clone(),
@@ -550,18 +550,21 @@ async fn run_instance<A, E, C>(
                     UserEventWrapper::Message(m) => messages.push(m),
                     #[cfg(feature = "a11y")]
                     UserEventWrapper::A11y(request) => {
-                        match request.request.action {
+                        if let iced_accessibility::WindowEvent::ActionRequested(action) = request.window_event{
+
+                        match action.action{
                             iced_accessibility::accesskit::Action::Focus => {
                                 commands.push(Command::widget(focus(
                                     core::widget::Id::from(u128::from(
-                                        request.request.target.0,
+                                        action.target.0,
                                     )
                                         as u64),
                                 )));
                             }
                             _ => {}
                         }
-                        events.push(conversion::a11y(request.request));
+                        events.push(conversion::a11y(action));
+                        }
                     }
                     #[cfg(feature = "a11y")]
                     UserEventWrapper::A11yEnabled => a11y_enabled = true,
@@ -580,22 +583,22 @@ async fn run_instance<A, E, C>(
                 #[cfg(feature = "a11y")]
                 if a11y_enabled {
                     use iced_accessibility::{
-                        accesskit::{
-                            NodeBuilder, NodeId, Role, Tree, TreeUpdate,
-                        },
+                        accesskit::{Node, NodeId, Role, Tree, TreeUpdate},
                         A11yId, A11yNode, A11yTree,
                     };
                     // TODO send a11y tree
                     let child_tree =
                         user_interface.a11y_nodes(state.cursor_position());
-                    let mut root = NodeBuilder::new(Role::Window);
-                    root.set_name(state.title());
+                    let mut root = Node::new(Role::Window);
+                    root.set_label(state.title());
 
                     let window_tree = A11yTree::node_with_child_tree(
                         A11yNode::new(root, window_a11y_id),
                         child_tree,
                     );
-                    let tree = Tree::new(NodeId(window_a11y_id));
+                    let tree = Tree::new(NodeId(
+                        window_a11y_id.get().try_into().unwrap(),
+                    ));
                     let mut current_operation =
                         Some(Box::new(OperationWrapper::Id(Box::new(
                             operation::focusable::find_focused(),
@@ -643,11 +646,15 @@ async fn run_instance<A, E, C>(
                     let focus = focus
                         .filter(|f_id| window_tree.contains(f_id))
                         .map(|id| id.into());
-                    adapter.update(TreeUpdate {
-                        nodes: window_tree.into(),
-                        tree: Some(tree),
-                        focus,
-                    });
+                    if let Some(focus) = focus {
+                        use iced_accessibility::Adapter;
+
+                        adapter.update(TreeUpdate {
+                            nodes: window_tree.into(),
+                            tree: Some(tree),
+                            focus,
+                        });
+                    }
                 }
 
                 debug.render_started();

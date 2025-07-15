@@ -16,7 +16,7 @@ impl A11yTree {
         Self { root, children }
     }
 
-    pub fn leaf<T: Into<A11yId>>(node: accesskit::NodeBuilder, id: T) -> Self {
+    pub fn leaf<T: Into<A11yId>>(node: accesskit::Node, id: T) -> Self {
         Self {
             root: vec![A11yNode::new(node, id)],
             children: vec![],

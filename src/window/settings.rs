@@ -69,7 +69,7 @@ impl From<Settings> for iced_winit::settings::Window {
             decorations: settings.decorations,
             transparent: settings.transparent,
             always_on_top: settings.always_on_top,
-            icon: settings.icon.map(Icon::into),
+            icon: settings.icon,
             platform_specific: settings.platform_specific,
         }
     }

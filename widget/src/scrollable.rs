@@ -395,7 +395,7 @@ where
         cursor_position: Point,
     ) -> iced_accessibility::A11yTree {
         use iced_accessibility::{
-            accesskit::{NodeBuilder, NodeId, Rect, Role},
+            accesskit::{Node, NodeId, Rect, Role},
             A11yId, A11yNode, A11yTree,
         };
 
@@ -403,7 +403,7 @@ where
         let child_tree = &state.children[0];
         let child_tree = self.content.as_widget().a11y_nodes(
             child_layout,
-            &child_tree,
+            child_tree,
             cursor_position,
         );
 
@@ -421,10 +421,10 @@ where
             (x + width) as f64,
             (y + height) as f64,
         );
-        let mut node = NodeBuilder::new(Role::ScrollView);
+        let mut node = Node::new(Role::ScrollView);
         node.set_bounds(bounds);
         if let Some(name) = self.name.as_ref() {
-            node.set_name(name.clone());
+            node.set_label(name.clone());
         }
         match self.description.as_ref() {
             Some(iced_accessibility::Description::Id(id)) => {
@@ -442,7 +442,8 @@ where
         }
 
         if is_hovered {
-            node.set_hovered();
+            // TOCO
+            // node.set_hovered();
         }
 
         if let Some(label) = self.label.as_ref() {
@@ -452,7 +453,7 @@ where
         let content = layout.children().next().unwrap();
         let content_bounds = content.bounds();
 
-        let mut scrollbar_node = NodeBuilder::new(Role::ScrollBar);
+        let mut scrollbar_node = Node::new(Role::ScrollBar);
         if matches!(state.state, tree::State::Some(_)) {
             let state = state.state.downcast_ref::<State>();
             let scrollbars = Scrollbars::new(
@@ -488,7 +489,8 @@ where
                 );
                 scrollbar_node.set_bounds(bounds);
                 if is_hovered {
-                    scrollbar_node.set_hovered();
+                    // TODO
+                    // scrollbar_node.set_hovered();
                 }
                 scrollbar_node
                     .set_controls(vec![A11yId::Widget(self.id.clone()).into()]);

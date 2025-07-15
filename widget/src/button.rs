@@ -345,9 +345,7 @@ where
         p: Point,
     ) -> iced_accessibility::A11yTree {
         use iced_accessibility::{
-            accesskit::{
-                Action, DefaultActionVerb, NodeBuilder, NodeId, Rect, Role,
-            },
+            accesskit::{Action, Node, NodeId, Rect, Role},
             A11yNode, A11yTree,
         };
 
@@ -356,7 +354,7 @@ where
         let child_tree =
             self.content
                 .as_widget()
-                .a11y_nodes(child_layout, &child_tree, p);
+                .a11y_nodes(child_layout, child_tree, p);
 
         let Rectangle {
             x,
@@ -372,12 +370,12 @@ where
         );
         let is_hovered = state.state.downcast_ref::<State>().is_hovered;
 
-        let mut node = NodeBuilder::new(Role::Button);
+        let mut node = Node::new(Role::Button);
         node.add_action(Action::Focus);
-        node.add_action(Action::Default);
+        node.add_action(Action::Click);
         node.set_bounds(bounds);
         if let Some(name) = self.name.as_ref() {
-            node.set_name(name.clone());
+            node.set_label(name.clone());
         }
         match self.description.as_ref() {
             Some(iced_accessibility::Description::Id(id)) => {
@@ -401,10 +399,11 @@ where
         if self.on_press.is_none() {
             node.set_disabled()
         }
-        if is_hovered {
-            node.set_hovered()
-        }
-        node.set_default_action_verb(DefaultActionVerb::Click);
+        // TODO: set hovered state
+        // if is_hovered {
+        //     node.set_hovered()
+        // }
+        node.add_action(Action::Click);
 
         A11yTree::node_with_child_tree(
             A11yNode::new(node, self.id.clone()),
@@ -521,7 +520,7 @@ pub fn update<'a, Message: Clone>(
             if let Some(Some(on_press)) = (id == event_id
                 && matches!(
                     action,
-                    iced_accessibility::accesskit::Action::Default
+                    iced_accessibility::accesskit::Action::Click
                 ))
             .then(|| on_press.clone())
             {

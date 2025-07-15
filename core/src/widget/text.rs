@@ -191,7 +191,7 @@ where
         _: Point,
     ) -> iced_accessibility::A11yTree {
         use iced_accessibility::{
-            accesskit::{Live, NodeBuilder, Rect, Role},
+            accesskit::{Live, Node, Rect, Role},
             A11yTree,
         };
 
@@ -208,10 +208,10 @@ where
             (y + height) as f64,
         );
 
-        let mut node = NodeBuilder::new(Role::StaticText);
+        let mut node = Node::new(Role::TextRun);
 
         // TODO is the name likely different from the content?
-        node.set_name(self.content.to_string().into_boxed_str());
+        node.set_label(self.content.to_string().into_boxed_str());
         node.set_bounds(bounds);
 
         // TODO make this configurable
@@ -220,7 +220,7 @@ where
     }
 
     fn id(&self) -> Option<crate::widget::Id> {
-        Some(self.id.clone().into())
+        Some(self.id.clone())
     }
 
     fn set_id(&mut self, id: crate::widget::Id) {

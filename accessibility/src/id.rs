@@ -37,7 +37,7 @@ impl From<accesskit::NodeId> for A11yId {
     fn from(value: accesskit::NodeId) -> Self {
         let val = u128::from(value.0);
         if val > u64::MAX as u128 {
-            Self::Window(value.0)
+            Self::Window(NonZeroU128::new(value.0 as u128).unwrap())
         } else {
             Self::Widget(Id::from(val as u64))
         }
@@ -50,7 +50,7 @@ impl From<A11yId> for accesskit::NodeId {
             A11yId::Window(id) => id,
             A11yId::Widget(id) => id.into(),
         };
-        accesskit::NodeId(node_id)
+        accesskit::NodeId(node_id.get().try_into().unwrap())
     }
 }
 

@@ -376,9 +376,7 @@ where
         cursor_position: Point,
     ) -> iced_accessibility::A11yTree {
         use iced_accessibility::{
-            accesskit::{
-                Action, CheckedState, NodeBuilder, NodeId, Rect, Role,
-            },
+            accesskit::{Action, Node, NodeId, Rect, Role},
             A11yNode, A11yTree,
         };
 
@@ -398,12 +396,12 @@ where
             (y + height) as f64,
         );
 
-        let mut node = NodeBuilder::new(Role::CheckBox);
+        let mut node = Node::new(Role::CheckBox);
         node.add_action(Action::Focus);
-        node.add_action(Action::Default);
+        node.add_action(Action::Click);
         node.set_bounds(bounds);
         if let Some(name) = self.name.as_ref() {
-            node.set_name(name.clone());
+            node.set_label(name.clone());
         }
         match self.description.as_ref() {
             Some(iced_accessibility::Description::Id(id)) => {
@@ -419,18 +417,20 @@ where
             }
             None => {}
         }
-        node.set_checked_state(if self.is_checked {
-            CheckedState::True
-        } else {
-            CheckedState::False
-        });
+        // TODO
+        // node.set_checked_state(if self.is_checked {
+        //     CheckedState::True
+        // } else {
+        //     CheckedState::False
+        // });
         if is_hovered {
-            node.set_hovered();
+            // TOCO
+            // node.set_hovered();
         }
-        node.add_action(Action::Default);
-        let mut label_node = NodeBuilder::new(Role::StaticText);
+        node.add_action(Action::Click);
+        let mut label_node = Node::new(Role::TextRun);
 
-        label_node.set_name(self.label.clone());
+        label_node.set_label(self.label.clone());
         // TODO proper label bounds
         label_node.set_bounds(bounds);
 

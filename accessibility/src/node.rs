@@ -1,15 +1,15 @@
-use accesskit::NodeClassSet;
+use accesskit::Node;
 
 use crate::A11yId;
 
 #[derive(Debug, Clone)]
 pub struct A11yNode {
-    node: accesskit::NodeBuilder,
+    node: accesskit::Node,
     id: A11yId,
 }
 
 impl A11yNode {
-    pub fn new<T: Into<A11yId>>(node: accesskit::NodeBuilder, id: T) -> Self {
+    pub fn new<T: Into<A11yId>>(node: accesskit::Node, id: T) -> Self {
         Self {
             node,
             id: id.into(),
@@ -20,11 +20,11 @@ impl A11yNode {
         &self.id
     }
 
-    pub fn node_mut(&mut self) -> &mut accesskit::NodeBuilder {
+    pub fn node_mut(&mut self) -> &mut accesskit::Node {
         &mut self.node
     }
 
-    pub fn node(&self) -> &accesskit::NodeBuilder {
+    pub fn node(&self) -> &accesskit::Node {
         &self.node
     }
 
@@ -38,9 +38,6 @@ impl A11yNode {
 
 impl From<A11yNode> for (accesskit::NodeId, accesskit::Node) {
     fn from(node: A11yNode) -> Self {
-        (
-            node.id.into(),
-            node.node.build(&mut NodeClassSet::lock_global()),
-        )
+        (node.id.into(), node.node)
     }
 }
