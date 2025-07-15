@@ -6,10 +6,9 @@ use std::{borrow, num::NonZeroU128};
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum A11yId {
-    Window(NonZeroU128),
+    Window(WindowId),
     Widget(Id),
 }
-
 // impl A11yId {
 //     pub fn new_widget() -> Self {
 //         Self::Widget(Id::unique())
@@ -20,9 +19,31 @@ pub enum A11yId {
 //     }
 // }
 
-impl From<NonZeroU128> for A11yId {
-    fn from(id: NonZeroU128) -> Self {
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
+pub struct WindowId(NonZeroU128);
+
+impl From<WindowId> for A11yId {
+    fn from(id: WindowId) -> Self {
         Self::Window(id)
+    }
+}
+
+impl From<NonZeroU128> for WindowId {
+    fn from(value: NonZeroU128) -> Self {
+        Self(value)
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(value: u64) -> Self {
+        let value = value as u128;
+        Self(NonZeroU128::new(value + u64::MAX as u128).unwrap())
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(value: WindowId) -> Self {
+        (value.0.get() - u64::MAX as u128) as u64
     }
 }
 
@@ -33,11 +54,24 @@ impl From<Id> for A11yId {
     }
 }
 
+impl TryFrom<Id> for u64 {
+    type Error = ();
+
+    fn try_from(value: Id) -> Result<Self, Self::Error> {
+        match value.0 {
+            Internal::Unique(id) => Ok(id),
+            Internal::Custom(id, _) => Ok(id),
+            Internal::Set(_) => Err(()),
+        }
+    }
+}
+
 impl From<accesskit::NodeId> for A11yId {
     fn from(value: accesskit::NodeId) -> Self {
         let val = u128::from(value.0);
         if val > u64::MAX as u128 {
-            Self::Window(NonZeroU128::new(value.0 as u128).unwrap())
+            let k = val - u64::MAX as u128;
+            Self::Window(NonZeroU128::new(k).unwrap().into())
         } else {
             Self::Widget(Id::from(val as u64))
         }
@@ -46,11 +80,10 @@ impl From<accesskit::NodeId> for A11yId {
 
 impl From<A11yId> for accesskit::NodeId {
     fn from(value: A11yId) -> Self {
-        let node_id = match value {
-            A11yId::Window(id) => id,
-            A11yId::Widget(id) => id.into(),
-        };
-        accesskit::NodeId(node_id.get().try_into().unwrap())
+        match value {
+            A11yId::Window(window_id) => Self(window_id.into()),
+            A11yId::Widget(id) => Self(id.try_into().unwrap()),
+        }
     }
 }
 
@@ -94,9 +127,9 @@ impl From<u64> for Id {
 }
 
 // Not meant to be used directly
-impl Into<NonZeroU128> for Id {
-    fn into(self) -> NonZeroU128 {
-        match &self.0 {
+impl From<Id> for NonZeroU128 {
+    fn from(val: Id) -> Self {
+        match &val.0 {
             Internal::Unique(id) => NonZeroU128::try_from(*id as u128).unwrap(),
             Internal::Custom(id, _) => {
                 NonZeroU128::try_from(*id as u128).unwrap()
@@ -122,12 +155,11 @@ impl ToString for Id {
 
 // XXX WIndow IDs are made unique by adding u64::MAX to them
 /// get window node id that won't conflict with other node ids for the duration of the program
-pub fn window_node_id() -> NonZeroU128 {
-    std::num::NonZeroU128::try_from(
-        u64::MAX as u128
-            + NEXT_WINDOW_ID.fetch_add(1, atomic::Ordering::Relaxed) as u128,
-    )
-    .unwrap()
+pub fn window_node_id() -> A11yId {
+    let id: WindowId = NEXT_WINDOW_ID
+        .fetch_add(1, atomic::Ordering::Relaxed)
+        .into();
+    id.into()
 }
 
 // TODO refactor to make panic impossible?

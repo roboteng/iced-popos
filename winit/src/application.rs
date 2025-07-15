@@ -373,14 +373,13 @@ async fn run_instance<A, E, C>(
     let (window_a11y_id, mut adapter, mut a11y_enabled) = {
         let node_id = core::id::window_node_id();
 
-        use iced_accessibility::accesskit::{
-            Node, NodeId, Role, Tree, TreeUpdate,
-        };
+        use iced_accessibility::accesskit::{Node, Role, Tree, TreeUpdate};
         use iced_accessibility::PlatformAdapter;
         let title = state.title().to_string();
         let proxy_clone = proxy.clone();
+        let node_ref = &node_id;
         (
-            node_id,
+            node_id.clone(),
             PlatformAdapter::new(
                 &window,
                 move || {
@@ -389,14 +388,9 @@ async fn run_instance<A, E, C>(
                     let mut node = Node::new(Role::Window);
                     node.set_label(title.clone());
                     TreeUpdate {
-                        nodes: vec![(
-                            NodeId(node_id.get().try_into().unwrap()),
-                            node,
-                        )],
-                        tree: Some(Tree::new(NodeId(
-                            node_id.get().try_into().unwrap(),
-                        ))),
-                        focus: NodeId(node_id.get().try_into().unwrap()),
+                        nodes: vec![(node_ref.clone().into(), node)],
+                        tree: Some(Tree::new(node_ref.clone().into())),
+                        focus: node_ref.clone().into(),
                     }
                 },
                 proxy.clone(),
@@ -405,6 +399,7 @@ async fn run_instance<A, E, C>(
         )
     };
 
+    let window_ref = &window_a11y_id;
     debug.startup_finished();
 
     while let Some(event) = event_receiver.next().await {
@@ -546,22 +541,21 @@ async fn run_instance<A, E, C>(
                 ));
             }
             event::Event::UserEvent(message) => {
+                println!("Got message: {message:?}");
                 match message {
                     UserEventWrapper::Message(m) => messages.push(m),
                     #[cfg(feature = "a11y")]
                     UserEventWrapper::A11y(request) => {
+                        println!("Got a11y message");
                         if let iced_accessibility::WindowEvent::ActionRequested(action) = request.window_event{
 
-                        match action.action{
-                            iced_accessibility::accesskit::Action::Focus => {
-                                commands.push(Command::widget(focus(
-                                    core::widget::Id::from(u128::from(
-                                        action.target.0,
-                                    )
-                                        as u64),
-                                )));
-                            }
-                            _ => {}
+                        if action.action == iced_accessibility::accesskit::Action::Focus {
+                            commands.push(Command::widget(focus(
+                                core::widget::Id::from(u128::from(
+                                    action.target.0,
+                                )
+                                    as u64),
+                            )));
                         }
                         events.push(conversion::a11y(action));
                         }
@@ -583,7 +577,7 @@ async fn run_instance<A, E, C>(
                 #[cfg(feature = "a11y")]
                 if a11y_enabled {
                     use iced_accessibility::{
-                        accesskit::{Node, NodeId, Role, Tree, TreeUpdate},
+                        accesskit::{Node, Role, Tree, TreeUpdate},
                         A11yId, A11yNode, A11yTree,
                     };
                     // TODO send a11y tree
@@ -593,12 +587,10 @@ async fn run_instance<A, E, C>(
                     root.set_label(state.title());
 
                     let window_tree = A11yTree::node_with_child_tree(
-                        A11yNode::new(root, window_a11y_id),
+                        A11yNode::new(root, window_ref.clone()),
                         child_tree,
                     );
-                    let tree = Tree::new(NodeId(
-                        window_a11y_id.get().try_into().unwrap(),
-                    ));
+                    let tree = Tree::new(window_ref.clone().into());
                     let mut current_operation =
                         Some(Box::new(OperationWrapper::Id(Box::new(
                             operation::focusable::find_focused(),

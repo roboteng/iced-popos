@@ -28,9 +28,10 @@ pub struct PlatformAdapter;
 impl PlatformAdapter {
     pub fn new<Window, EventLoopProxy>(
         _window: &Window,
-        _: impl FnOnce() -> TreeUpdate,
+        f: impl FnOnce() -> TreeUpdate,
         _: EventLoopProxy,
     ) -> Self {
+        f();
         PlatformAdapter
     }
 }

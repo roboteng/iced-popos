@@ -270,10 +270,14 @@ pub mod widget {
     pub use iced_widget::*;
 
     // We hide the re-exported modules by `iced_widget`
+    #[allow(hidden_glob_reexports)]
     mod core {}
+    #[allow(hidden_glob_reexports)]
     mod graphics {}
     mod native {}
+    #[allow(hidden_glob_reexports)]
     mod renderer {}
+    #[allow(hidden_glob_reexports)]
     mod style {}
 }
 
