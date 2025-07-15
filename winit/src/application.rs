@@ -576,6 +576,7 @@ async fn run_instance<A, E, C>(
 
                 #[cfg(feature = "a11y")]
                 if a11y_enabled {
+                    println!("In a11y area");
                     use iced_accessibility::{
                         accesskit::{Node, Role, Tree, TreeUpdate},
                         A11yId, A11yNode, A11yTree,
