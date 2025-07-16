@@ -68,13 +68,7 @@ impl TryFrom<Id> for u64 {
 
 impl From<accesskit::NodeId> for A11yId {
     fn from(value: accesskit::NodeId) -> Self {
-        let val = u128::from(value.0);
-        if val > u64::MAX as u128 {
-            let k = val - u64::MAX as u128;
-            Self::Window(NonZeroU128::new(k).unwrap().into())
-        } else {
-            Self::Widget(Id::from(val as u64))
-        }
+        Self::Widget(Id::from(value.0))
     }
 }
 
@@ -208,7 +202,8 @@ impl Hash for Internal {
 
 #[cfg(test)]
 mod tests {
-    use super::Id;
+    use super::*;
+    use accesskit::NodeId;
 
     #[test]
     fn unique_generates_different_ids() {
@@ -216,5 +211,15 @@ mod tests {
         let b = Id::unique();
 
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn widget_id_transformations() {
+        for id in [1, 2, u64::MAX] {
+            let original = A11yId::Widget(id.into());
+            let node_id: NodeId = original.clone().into();
+            let transformed = node_id.into();
+            assert_eq!(original, transformed, "Incorrect for {}", id);
+        }
     }
 }
