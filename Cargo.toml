@@ -40,7 +40,12 @@ system = ["iced_winit/system"]
 # Enables the advanced module
 advanced = []
 # Enables the `accesskit` accessibility library
-a11y = ["iced_accessibility", "iced_widget/a11y", "iced_core/a11y", "iced_winit/a11y"]
+a11y = [
+    "iced_accessibility",
+    "iced_widget/a11y",
+    "iced_core/a11y",
+    "iced_winit/a11y",
+]
 
 
 [badges]
@@ -48,6 +53,7 @@ maintenance = { status = "actively-developed" }
 
 [workspace]
 members = [
+    "accesskit_winit",
     "core",
     "futures",
     "graphics",

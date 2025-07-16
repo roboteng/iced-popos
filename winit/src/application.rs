@@ -247,7 +247,7 @@ where
 
     let mut context = task::Context::from_waker(task::noop_waker_ref());
 
-    platform::run(event_loop, move |event, _, control_flow| {
+    platform::run(event_loop, move |event, _event_loop_target, control_flow| {
         use winit::event_loop::ControlFlow;
 
         if let ControlFlow::ExitWithCode(_) = control_flow {
@@ -372,29 +372,20 @@ async fn run_instance<A, E, C>(
     #[cfg(feature = "a11y")]
     let (window_a11y_id, mut adapter, mut a11y_enabled) = {
         let node_id = core::id::window_node_id();
-
-        use iced_accessibility::accesskit::{Node, Role, Tree, TreeUpdate};
-        use iced_accessibility::PlatformAdapter;
-        let title = state.title().to_string();
-        let proxy_clone = proxy.clone();
-        let node_ref = &node_id;
+        
+        // Create the adapter before the window becomes visible (macOS only for now)
+        #[cfg(target_os = "macos")]
+        let adapter = Some(iced_accessibility::PlatformAdapter::with_event_loop_proxy_simple(
+            &window,
+            proxy.clone(),
+        ));
+        
+        #[cfg(not(target_os = "macos"))]
+        let adapter = None::<iced_accessibility::PlatformAdapter>;
+        
         (
             node_id.clone(),
-            PlatformAdapter::new(
-                &window,
-                move || {
-                    let _ =
-                        proxy_clone.send_event(UserEventWrapper::A11yEnabled);
-                    let mut node = Node::new(Role::Window);
-                    node.set_label(title.clone());
-                    TreeUpdate {
-                        nodes: vec![(node_ref.clone().into(), node)],
-                        tree: Some(Tree::new(node_ref.clone().into())),
-                        focus: node_ref.clone().into(),
-                    }
-                },
-                proxy.clone(),
-            ),
+            adapter,
             false,
         )
     };
@@ -546,18 +537,44 @@ async fn run_instance<A, E, C>(
                     UserEventWrapper::Message(m) => messages.push(m),
                     #[cfg(feature = "a11y")]
                     UserEventWrapper::A11y(request) => {
-                        println!("Got a11y message");
-                        if let iced_accessibility::WindowEvent::ActionRequested(action) = request.window_event{
-
-                        if action.action == iced_accessibility::accesskit::Action::Focus {
-                            commands.push(Command::widget(focus(
-                                core::widget::Id::from(u128::from(
-                                    action.target.0,
-                                )
-                                    as u64),
-                            )));
-                        }
-                        events.push(conversion::a11y(action));
+                        println!("Got a11y message: {:?}", request.window_event);
+                        match request.window_event {
+                            iced_accessibility::WindowEvent::InitialTreeRequested => {
+                                // Update the adapter with the initial accessibility tree
+                                if let Some(ref mut adapter) = adapter {
+                                    use iced_accessibility::{accesskit::{Node, Role, Tree, TreeUpdate}, A11yId, A11yNode, A11yTree};
+                                    let child_tree = user_interface.a11y_nodes(state.cursor_position());
+                                    let mut root = Node::new(Role::Window);
+                                    root.set_label(state.title());
+                                    
+                                    let window_tree = A11yTree::node_with_child_tree(
+                                        A11yNode::new(root, window_a11y_id.clone()),
+                                        child_tree,
+                                    );
+                                    let tree = Tree::new(window_a11y_id.clone().into());
+                                    
+                                    adapter.update_if_active(|| TreeUpdate {
+                                        nodes: window_tree.into(),
+                                        tree: Some(tree),
+                                        focus: window_a11y_id.clone().into(),
+                                    });
+                                }
+                            }
+                            iced_accessibility::WindowEvent::ActionRequested(action) => {
+                                if action.action == iced_accessibility::accesskit::Action::Focus {
+                                    commands.push(Command::widget(focus(
+                                        core::widget::Id::from(u128::from(
+                                            action.target.0,
+                                        )
+                                            as u64),
+                                    )));
+                                }
+                                events.push(conversion::a11y(action));
+                            }
+                            iced_accessibility::WindowEvent::AccessibilityDeactivated => {
+                                println!("Accessibility deactivated");
+                                a11y_enabled = false;
+                            }
                         }
                     }
                     #[cfg(feature = "a11y")]
@@ -576,7 +593,6 @@ async fn run_instance<A, E, C>(
 
                 #[cfg(feature = "a11y")]
                 if a11y_enabled {
-                    println!("In a11y area");
                     use iced_accessibility::{
                         accesskit::{Node, Role, Tree, TreeUpdate},
                         A11yId, A11yNode, A11yTree,
@@ -598,7 +614,7 @@ async fn run_instance<A, E, C>(
                         ))));
 
                     let mut focus = None;
-                    while let Some(mut operation) = current_operation.take() {
+                    if let Some(mut operation) = current_operation.take() {
                         user_interface.operate(&renderer, operation.as_mut());
 
                         match operation.finish() {
@@ -640,13 +656,13 @@ async fn run_instance<A, E, C>(
                         .filter(|f_id| window_tree.contains(f_id))
                         .map(|id| id.into());
                     if let Some(focus) = focus {
-                        use iced_accessibility::Adapter;
-
-                        adapter.update(TreeUpdate {
-                            nodes: window_tree.into(),
-                            tree: Some(tree),
-                            focus,
-                        });
+                        if let Some(ref mut adapter) = adapter {
+                            adapter.update_if_active(|| TreeUpdate {
+                                nodes: window_tree.into(),
+                                tree: Some(tree),
+                                focus,
+                            });
+                        }
                     }
                 }
 
@@ -729,6 +745,11 @@ async fn run_instance<A, E, C>(
                 }
 
                 state.update(&window, &window_event, &mut debug);
+
+                #[cfg(feature = "a11y")]
+                if let Some(ref mut adapter) = adapter {
+                    adapter.process_event(&window, &window_event);
+                }
 
                 if let Some(event) = conversion::window_event(
                     &window_event,

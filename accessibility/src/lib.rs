@@ -17,51 +17,22 @@ pub use accesskit_unix;
 #[cfg(feature = "accesskit_windows")]
 pub use accesskit_windows;
 
+// Always re-export accesskit_winit since it's always available
+pub use accesskit_winit;
+
+// Re-export types from accesskit_winit
+pub use accesskit_winit::{Adapter as PlatformAdapter, Event, WindowEvent};
+
+// Keep backward compatibility with old Event type
 #[derive(Debug)]
-pub struct Event<WindowId: std::fmt::Debug = ()> {
+pub struct LegacyEvent<WindowId: std::fmt::Debug = ()> {
     pub window_id: WindowId,
-    pub window_event: WindowEvent,
-}
-
-pub struct PlatformAdapter;
-
-impl PlatformAdapter {
-    pub fn new<Window, EventLoopProxy>(
-        _window: &Window,
-        f: impl FnOnce() -> TreeUpdate,
-        _: EventLoopProxy,
-    ) -> Self {
-        f();
-        PlatformAdapter
-    }
-}
-
-impl Adapter for PlatformAdapter {
-    type Window = ();
-
-    fn update_if_active(&mut self, _updater: impl FnOnce() -> TreeUpdate) {
-        todo!()
-    }
-
-    fn process_event(&mut self, _window: &Self::Window, _event: &WindowEvent) {
-        todo!()
-    }
-
-    fn update(&mut self, _update: TreeUpdate) {
-        todo!()
-    }
+    pub window_event: LegacyWindowEvent,
 }
 
 #[derive(Debug)]
-pub enum WindowEvent {
+pub enum LegacyWindowEvent {
     InitialTreeRequested,
     ActionRequested(ActionRequest),
     AccessibilityDeactivated,
-}
-
-pub trait Adapter {
-    type Window;
-    fn update_if_active(&mut self, updater: impl FnOnce() -> TreeUpdate);
-    fn process_event(&mut self, _window: &Self::Window, event: &WindowEvent);
-    fn update(&mut self, _update: TreeUpdate);
 }
