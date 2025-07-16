@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-iced = { path = "../..", features = ["image", "debug", "tokio"] }
+iced = { path = "../..", features = ["image", "debug", "tokio", "a11y"] }
 serde_json = "1.0"
 
 [dependencies.serde]

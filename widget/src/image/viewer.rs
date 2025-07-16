@@ -333,6 +333,30 @@ where
             });
         });
     }
+
+    #[cfg(feature = "a11y")]
+    fn a11y_nodes(
+        &self,
+        layout: Layout<'_>,
+        _state: &Tree,
+        _cursor_position: Point,
+    ) -> iced_accessibility::A11yTree {
+        use iced_accessibility::{accesskit::{Node, Rect, Role}, A11yTree};
+        use crate::core::widget::Id;
+        
+        let bounds = layout.bounds();
+        let Rectangle { x, y, width, height } = bounds;
+        let bounds = Rect::new(
+            x as f64,
+            y as f64,
+            (x + width) as f64,
+            (y + height) as f64,
+        );
+        let mut node = Node::new(Role::Image);
+        node.set_bounds(bounds);
+        
+        A11yTree::leaf(node, Id::unique())
+    }
 }
 
 /// The local state of a [`Viewer`].

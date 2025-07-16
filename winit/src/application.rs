@@ -371,14 +371,18 @@ async fn run_instance<A, E, C>(
 
     #[cfg(feature = "a11y")]
     let (window_a11y_id, mut adapter, mut a11y_enabled) = {
+        println!("Setting up accessibility system...");
         let node_id = core::id::window_node_id();
         
         // Create the adapter before the window becomes visible (macOS only for now)
         #[cfg(target_os = "macos")]
-        let adapter = Some(iced_accessibility::PlatformAdapter::with_event_loop_proxy_simple(
-            &window,
-            proxy.clone(),
-        ));
+        let adapter = {
+            println!("Creating macOS accessibility adapter...");
+            Some(iced_accessibility::PlatformAdapter::with_event_loop_proxy_simple(
+                &window,
+                proxy.clone(),
+            ))
+        };
         
         #[cfg(not(target_os = "macos"))]
         let adapter = None::<iced_accessibility::PlatformAdapter>;
@@ -386,7 +390,7 @@ async fn run_instance<A, E, C>(
         (
             node_id.clone(),
             adapter,
-            false,
+            false,  // Start disabled, enable when screen reader requests
         )
     };
 
@@ -540,10 +544,33 @@ async fn run_instance<A, E, C>(
                         println!("Got a11y message: {:?}", request.window_event);
                         match request.window_event {
                             iced_accessibility::WindowEvent::InitialTreeRequested => {
+                                // Enable accessibility system when first requested
+                                println!("Initial tree requested - enabling accessibility system");
+                                a11y_enabled = true;
+                                
                                 // Update the adapter with the initial accessibility tree
                                 if let Some(ref mut adapter) = adapter {
                                     use iced_accessibility::{accesskit::{Node, Role, Tree, TreeUpdate}, A11yId, A11yNode, A11yTree};
                                     let child_tree = user_interface.a11y_nodes(state.cursor_position());
+                                    
+                                    // Debug: Print accessibility tree info
+                                    println!("=== ACCESSIBILITY TREE DEBUG ===");
+                                    println!("Child tree ROOT nodes: {}", child_tree.root().len());
+                                    for (i, root_node) in child_tree.root().iter().enumerate() {
+                                        println!("  Root {}: role={:?}, id={:?}", i, root_node.node().role(), root_node.id());
+                                        if let Some(label) = root_node.node().label() {
+                                            println!("    Label: {:?}", label);
+                                        }
+                                    }
+                                    println!("Child tree CHILDREN nodes: {}", child_tree.children().len());
+                                    for (i, child) in child_tree.children().iter().enumerate() {
+                                        println!("  Child {}: role={:?}, id={:?}", i, child.node().role(), child.id());
+                                        if let Some(label) = child.node().label() {
+                                            println!("    Label: {:?}", label);
+                                        }
+                                    }
+                                    println!("================================");
+                                    
                                     let mut root = Node::new(Role::Window);
                                     root.set_label(state.title());
                                     
@@ -553,11 +580,13 @@ async fn run_instance<A, E, C>(
                                     );
                                     let tree = Tree::new(window_a11y_id.clone().into());
                                     
+                                    println!("Sending initial accessibility tree to adapter");
                                     adapter.update_if_active(|| TreeUpdate {
                                         nodes: window_tree.into(),
                                         tree: Some(tree),
                                         focus: window_a11y_id.clone().into(),
                                     });
+                                    println!("Initial accessibility tree sent");
                                 }
                             }
                             iced_accessibility::WindowEvent::ActionRequested(action) => {
@@ -578,7 +607,10 @@ async fn run_instance<A, E, C>(
                         }
                     }
                     #[cfg(feature = "a11y")]
-                    UserEventWrapper::A11yEnabled => a11y_enabled = true,
+                    UserEventWrapper::A11yEnabled => {
+                        println!("Accessibility enabled!");
+                        a11y_enabled = true;
+                    }
                 };
             }
             event::Event::RedrawRequested(_) => {
@@ -593,6 +625,7 @@ async fn run_instance<A, E, C>(
 
                 #[cfg(feature = "a11y")]
                 if a11y_enabled {
+                    println!("Accessibility enabled - processing redraw tree");
                     use iced_accessibility::{
                         accesskit::{Node, Role, Tree, TreeUpdate},
                         A11yId, A11yNode, A11yTree,
@@ -600,6 +633,27 @@ async fn run_instance<A, E, C>(
                     // TODO send a11y tree
                     let child_tree =
                         user_interface.a11y_nodes(state.cursor_position());
+                    
+                    // Debug: Print redraw accessibility tree info
+                    println!("=== REDRAW A11Y TREE DEBUG ===");
+                    println!("Child tree root count during redraw: {}", child_tree.root().len());
+                    println!("Child tree children count during redraw: {}", child_tree.children().len());
+                    println!("Child tree root structure during redraw:");
+                    for (i, root) in child_tree.root().iter().enumerate() {
+                        println!("  Root {}: role={:?}, id={:?}", i, root.node().role(), root.id());
+                        if let Some(label) = root.node().label() {
+                            println!("    Label: {:?}", label);
+                        }
+                    }
+                    println!("Child tree children structure during redraw:");
+                    for (i, child) in child_tree.children().iter().enumerate() {
+                        println!("  Child {}: role={:?}, id={:?}", i, child.node().role(), child.id());
+                        if let Some(label) = child.node().label() {
+                            println!("    Label: {:?}", label);
+                        }
+                    }
+                    println!("==============================");
+                    
                     let mut root = Node::new(Role::Window);
                     root.set_label(state.title());
 
@@ -637,32 +691,24 @@ async fn run_instance<A, E, C>(
                         }
                     }
 
-                    log::debug!(
-                        "focus: {:?}\ntree root: {:?}\n children: {:?}",
-                        &focus,
-                        window_tree
-                            .root()
-                            .iter()
-                            .map(|n| (n.node().role(), n.id()))
-                            .collect::<Vec<_>>(),
-                        window_tree
-                            .children()
-                            .iter()
-                            .map(|n| (n.node().role(), n.id()))
-                            .collect::<Vec<_>>()
-                    );
+                    println!("Focus: {:?}", &focus);
+                    println!("Window tree root nodes: {:?}", window_tree.root().iter().map(|n| (n.node().role(), n.id())).collect::<Vec<_>>());
+                    println!("Window tree children: {:?}", window_tree.children().iter().map(|n| (n.node().role(), n.id())).collect::<Vec<_>>());
                     // TODO maybe optimize this?
                     let focus = focus
                         .filter(|f_id| window_tree.contains(f_id))
                         .map(|id| id.into());
-                    if let Some(focus) = focus {
-                        if let Some(ref mut adapter) = adapter {
-                            adapter.update_if_active(|| TreeUpdate {
-                                nodes: window_tree.into(),
-                                tree: Some(tree),
-                                focus,
-                            });
-                        }
+                    
+                    if let Some(ref mut adapter) = adapter {
+                        println!("Sending accessibility tree update to adapter with focus: {:?}", focus);
+                        adapter.update_if_active(|| TreeUpdate {
+                            nodes: window_tree.into(),
+                            tree: Some(tree),
+                            focus: focus.unwrap_or_else(|| window_ref.clone().into()),
+                        });
+                        println!("Accessibility tree update sent");
+                    } else {
+                        println!("No adapter available for accessibility update");
                     }
                 }
 
